@@ -23,10 +23,12 @@ int main() {
 	is(array[0], 2, "array[0] == 1");
 	is(array[0], "2", "array[0] == \"1\"");
 
-	note("array.push(UINT_MAX)");
-	array.push(UINT_MAX);
-	is(array[1], UINT_MAX, "array[1] == UINT_MAX");
-	ok(array[1] > static_cast<UV>(INT_MAX), "array[1] > (unsigned)INT_MAX");
+   std::cout << "ULONG_MAX is " << sizeof(ULONG_MAX) << std::endl;
+   std::cout << "UINT_MAX is " << sizeof(UINT_MAX) << std::endl;
+	note("array.push(ULONG_MAX)");
+	array.push(ULONG_MAX);
+	is(array[1], ULONG_MAX, "array[1] == ULONG_MAX");
+	ok(array[1] > static_cast<UV>(LONG_MAX), "array[1] > (unsigned)LONG_MAX");
 	is(array[1], -1, "array[1] == -1");
 
 	array.push(300E30);
