@@ -23,8 +23,6 @@ int main() {
 	is(array[0], 2, "array[0] == 1");
 	is(array[0], "2", "array[0] == \"1\"");
 
-   std::cout << "ULONG_MAX is " << sizeof(ULONG_MAX) << std::endl;
-   std::cout << "UINT_MAX is " << sizeof(UINT_MAX) << std::endl;
 	note("array.push(ULONG_MAX)");
 	array.push(ULONG_MAX);
 	is(array[1], ULONG_MAX, "array[1] == ULONG_MAX");
