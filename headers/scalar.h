@@ -235,6 +235,9 @@ namespace perl {
 			void push(const implementation::array::Value& val);
 			void push(const null_type&);
 			void push(const Regex&);
+			template<typename T> typename boost::enable_if<typename typemap<T>::from_type>::type push(const T& t) {
+				push(typecast_from(interp, t));
+			}
 //			template<typename T> void push(T* arg);
 		};
 
@@ -254,6 +257,7 @@ namespace perl {
 			SV* pop();
 			AV* pop_array(int);
 			int match(REGEXP*, SV*, IV, IV);
+			int subst(REGEXP*, SV*, SV*, IV);
 			public:
 			explicit Call_stack(interpreter*);
 
@@ -273,7 +277,10 @@ namespace perl {
 			const array::Temp eval_list(SV*);
 
 			int match_scalar(REGEXP*, const scalar::Base&, IV flags);
-			const array::Temp match_array(REGEXP*, const scalar::Base&, IV flags);
+			const array::Temp match_list(REGEXP*, const scalar::Base&, IV flags);
+
+			int subst_scalar(REGEXP*, const scalar::Base&, const scalar::Base&, IV flags);
+			const array::Temp subst_array(REGEXP*, const scalar::Base&, const scalar::Base&, IV flags);
 
 			~Call_stack();
 			template<typename T> Call_stack& push(const T& t) {
@@ -567,8 +574,6 @@ namespace perl {
 
 				Value& operator++();
 				Value& operator--();
-
-				bool is_defined() const;
 
 				operator int() const;
 				operator unsigned int() const;

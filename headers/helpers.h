@@ -143,11 +143,17 @@ namespace perl {
 
 	struct override { };
 
+	namespace typecast { }
 	namespace implementation {
+		using namespace typecast;
+
 		struct null_type { };
 
 		template<typename T, typename = void> struct perl_type {
 			typedef boost::false_type type;
 		};
+	}
+	namespace typecast {
+		template<typename T, typename E = void> struct typemap;
 	}
 }

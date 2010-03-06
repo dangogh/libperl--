@@ -1,4 +1,28 @@
 namespace perl {
+	namespace typecast {
+		template<typename T, typename E> struct typemap {
+			typedef boost::false_type from_type;
+		};
+	}
+
+	namespace implementation {
+		template<typename T> struct typemap_from_info {
+			typedef typeof(typecast::typemap<T>::cast_from) from_type;
+			typedef typename boost::function_traits<from_type>::result_type result_type;
+			typedef typename boost::function_traits<from_type>::arg2_type arg_type;
+		};
+
+		template<typename T> struct typemap_to_info {
+			typedef typeof(typecast::typemap<T>::cast_to) to_type;
+			typedef typename boost::function_traits<to_type>::result_type result_type;
+			typedef typename boost::function_traits<to_type>::arg1_type arg_type;
+		};
+	}
+
+	template<typename T> const typename implementation::typemap_to_info<T>::result_type typecast_to(const typename implementation::typemap_to_info<T>::arg_type& t) {
+		return typecast::typemap<T>::cast_to(t);
+	}
+
 	class lock {
 		interpreter* const interp;
 		SV* const variable;
@@ -89,7 +113,7 @@ namespace perl {
 			template<typename T> int var_write(interpreter* interp, SV* var, MAGIC* magic_ptr) {
 				T& tmp = *implementation::get_magic_ptr<T>(magic_ptr);
 				Scalar::Temp val(interp, var, false);
-				tmp = val;
+				tmp = (T)val;
 				return 0;
 			}
 		}
@@ -194,16 +218,19 @@ namespace perl {
 			return *reinterpret_cast<const T*>(ret.value);
 		}
 
-		void die(interpreter*, const char* message);
-		template<typename T, typename U> typename boost::enable_if<typename boost::is_convertible<const U&, T>::type, T>::type typemap_cast(const U& u) {
-			return static_cast<T>(u);
+		SV* value_of_pointer(interpreter*, const void*, const std::type_info&);
+		template<typename T> const Scalar::Temp value_of_pointer(interpreter* interp, T* pointer) {
+			return Scalar::Temp(interp, value_of_pointer(interp, pointer, typeid(T)), false);
 		}
+		Ref<Any>::Temp store_in_cache(interpreter*, const void*, const implementation::Class_state&);
 
-		//TODO: make it throw an object
+		void die(interpreter*, const char* message);
+
 #define TRY_OR_THROW(a) try {\
 			a;\
 		}\
 		catch(std::exception& e) {\
+			/* TODO: make it throw an object */ \
 			die(me_perl, e.what());\
 		}\
 		catch(...) {\
@@ -235,7 +262,7 @@ namespace perl {
 			static void subroutine(interpreter* me_perl, CV* cef) {
 				Argument_stack arg_stack(me_perl);
 				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
-				TRY_OR_THROW(arg_stack.returns(ref(typemap_cast<A1>(arg_stack[0]))));
+				TRY_OR_THROW(arg_stack.returns(ref(typecast_to<A1>(arg_stack[0]))));
 			}
 		};
 		template<typename R, typename A1> struct export_sub_1<R, A1, typename boost::enable_if<typename boost::is_convertible<Array::Temp, A1>::type>::type> {
@@ -253,7 +280,7 @@ namespace perl {
 			static void subroutine(interpreter* me_perl, CV* cef) {
 				Argument_stack arg_stack(me_perl);
 				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
-				TRY_OR_THROW(arg_stack.returns(ref(typemap_cast<A1>(arg_stack[0]), typemap_cast<A2>(arg_stack[1]))));
+				TRY_OR_THROW(arg_stack.returns(ref(typecast_to<A1>(arg_stack[0]), typecast_to<A2>(arg_stack[1]))));
 			}
 		};
 		template<typename R, typename A1, typename A2, typename A3> struct export_sub_3 {
@@ -261,7 +288,7 @@ namespace perl {
 			static void subroutine(interpreter* me_perl, CV* cef) {
 				Argument_stack arg_stack(me_perl);
 				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
-				TRY_OR_THROW(arg_stack(ref(typemap_cast<A1>(arg_stack[0]), typemap_cast<A2>(arg_stack[1]), typemap_cast<A3>(arg_stack[2]))));
+				TRY_OR_THROW(arg_stack(ref(typecast_to<A1>(arg_stack[0]), typecast_to<A2>(arg_stack[1]), typecast_to<A3>(arg_stack[2]))));
 			}
 		};
 
@@ -286,7 +313,7 @@ namespace perl {
 			static void subroutine(interpreter* me_perl, CV* cef) {
 				Argument_stack arg_stack(me_perl);
 				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
-				ref(typemap_cast<A1>(arg_stack[0]));
+				ref(typecast_to<A1>(arg_stack[0]));
 			}
 		};
 		template<typename A1> struct export_sub_v1<A1, typename boost::enable_if<typename boost::is_convertible<Array::Temp, A1>::type>::type> {
@@ -295,7 +322,7 @@ namespace perl {
 				Argument_stack arg_stack(me_perl);
 				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
 				Array::Temp arg = arg_stack.get_arg();
-				ref(typemap_cast<A1>(arg));
+				ref(static_cast<A1>(arg));
 			}
 		};
 
@@ -304,7 +331,7 @@ namespace perl {
 			static void subroutine(interpreter* me_perl, CV* cef) {
 				Argument_stack arg_stack(me_perl);
 				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
-				ref(typemap_cast<A1>(arg_stack[0]), typemap_cast<A2>(arg_stack[1]));
+				ref(typecast_to<A1>(arg_stack[0]), typecast_to<A2>(arg_stack[1]));
 			}
 		};
 
@@ -313,7 +340,7 @@ namespace perl {
 			static void subroutine(interpreter* me_perl, CV* cef) {
 				Argument_stack arg_stack(me_perl);
 				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
-				ref(typemap_cast<A1>(arg_stack[0], typemap_cast<A2>(arg_stack[1]), typemap_cast<A3>(arg_stack[3])));
+				ref(typecast_to<A1>(arg_stack[0], typecast_to<A2>(me_perl, arg_stack[1]), typecast_to<A3>(me_perl, arg_stack[3])));
 			}
 		};
 
@@ -373,23 +400,59 @@ namespace perl {
 			}
 		};
 
-		template<typename R, typename T, typename A1> struct export_method_1 {
+		template<typename R, typename T, typename A1, typename = void> struct export_method_1;
+		template<typename R, typename T, typename A1> struct export_method_1<R, T, A1, typename boost::disable_if<typename boost::is_convertible<Array::Temp, A1>::type>::type> {
 			typedef R (T::*func_ptr)(A1);
 			static void method(interpreter* me_perl, CV* cef) {
 				Argument_stack arg_stack(me_perl);
 				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
-				TRY_OR_THROW(arg_stack.returns((get_magic_object<T>(arg_stack[0])->*ref)(static_cast<A1>(arg_stack[1]))));
+				TRY_OR_THROW(arg_stack.returns((get_magic_object<T>(arg_stack[0])->*ref)(typecast_to<A1>(arg_stack[1]))));
 			}
 		};
 
-		template<typename T, typename A1> struct export_method_v1 {
+		template<typename R, typename T, typename A1> struct export_method_1<R, T, A1, typename boost::enable_if<typename boost::is_convertible<Array::Temp, A1>::type>::type> {
+			typedef R (T::*func_ptr)(A1);
+			static void method(interpreter* me_perl, CV* cef) {
+				Argument_stack arg_stack(me_perl);
+				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
+				Array::Temp arg = arg_stack.get_arg();
+				arg.shift();
+				TRY_OR_THROW(arg_stack.returns((get_magic_object<T>(arg_stack[0])->*ref)(arg)));
+			}
+		};
+
+		template<typename T, typename A1, typename = void> struct export_method_v1;
+		template<typename T, typename A1> struct export_method_v1<T, A1, typename boost::disable_if<typename boost::is_convertible<Array::Temp, A1>::type>::type> {
 			typedef void (T::*func_ptr)(A1);
 			static void method(interpreter* me_perl, CV* cef) {
 				Argument_stack arg_stack(me_perl);
 				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
-				TRY_OR_THROW((get_magic_object<T>(arg_stack[0])->*ref)(static_cast<A1>(arg_stack[1])));
+				TRY_OR_THROW((get_magic_object<T>(arg_stack[0])->*ref)(typecast_to<A1>(arg_stack[1])));
 			}
 		};
+		template<typename T, typename A1> struct export_method_v1<T, A1, typename boost::enable_if<typename boost::is_convertible<Array::Temp, A1>::type>::type> {
+			typedef void (T::*func_ptr)(A1);
+			static void method(interpreter* me_perl, CV* cef) {
+				Argument_stack arg_stack(me_perl);
+				const func_ptr ref = implementation::get_function_pointer<func_ptr>(me_perl, cef);
+				Array::Temp arg = arg_stack.get_arg();
+				arg.shift();
+				TRY_OR_THROW((get_magic_object<T>(arg_stack[0])->*ref)(arg));
+			}
+		};
+
+		template<typename T, typename R> static void export_method(interpreter* const interp, const char* name, R (T::* const fptr)() const) {
+			implementation::export_as(interp, name, export_method_0<R,T>::method, fptr);
+		}
+		template<typename T> static void export_method(interpreter* const interp, const char* name, void (T::* const fptr)() const) {
+			implementation::export_as(interp, name, export_method_v0<T>::method, fptr);
+		}
+		template<typename T, typename R, typename A1> static void export_method(interpreter* const interp, const char* name, R (T::* const fptr)(A1) const) {
+			implementation::export_as(interp, name, export_method_1<R, T, A1>::method, fptr);
+		}
+		template<typename T, typename A1> static void export_method(interpreter* const interp, const char* name, void (T::* const fptr)(A1) const) {
+			implementation::export_as(interp, name, export_method_v1<T, A1>::method, fptr);
+		}
 
 		template<typename T, typename R> static void export_method(interpreter* const interp, const char* name, R (T::* const fptr)()) {
 			implementation::export_as(interp, name, export_method_0<R,T>::method, fptr);
@@ -397,7 +460,7 @@ namespace perl {
 		template<typename T> static void export_method(interpreter* const interp, const char* name, void (T::* const fptr)()) {
 			implementation::export_as(interp, name, export_method_v0<T>::method, fptr);
 		}
-		template<typename T, typename R, typename A1> static void export_method(interpreter* const interp, const char* name, R (T::*fptr)(A1)) {
+		template<typename T, typename R, typename A1> static void export_method(interpreter* const interp, const char* name, R (T::* const fptr)(A1)) {
 			implementation::export_as(interp, name, export_method_1<R, T, A1>::method, fptr);
 		}
 		template<typename T, typename A1> static void export_method(interpreter* const interp, const char* name, void (T::* const fptr)(A1)) {
@@ -456,7 +519,7 @@ namespace perl {
 					Argument_stack arg_stack(me_perl);
 					const constructor_info data = implementation::get_function_pointer<constructor_info>(me_perl, cef);
 					const func_ptr ref = data.get<func_ptr>();
-					TRY_OR_THROW(arg_stack.returns(store_in_cache(me_perl, ref(static_cast<A1>(arg_stack[1])), data.class_state)));
+					TRY_OR_THROW(arg_stack.returns(store_in_cache(me_perl, ref(typecast_to<A1>(arg_stack[1])), data.class_state)));
 				}
 			};
 			template<typename A1, typename A2> struct arg2 {
@@ -465,7 +528,7 @@ namespace perl {
 					Argument_stack arg_stack(me_perl);
 					const constructor_info data = implementation::get_function_pointer<constructor_info>(me_perl, cef);
 					const func_ptr ref = data.get<func_ptr>();
-					TRY_OR_THROW(arg_stack.returns(store_in_cache(me_perl, ref(static_cast<A1>(arg_stack[1]), static_cast<A2>(arg_stack[2])), data.class_state)));
+					TRY_OR_THROW(arg_stack.returns(store_in_cache(me_perl, ref(typecast_to<A1>(arg_stack[1]), typecast_to<A2>(arg_stack[2])), data.class_state)));
 				}
 			};
 			template<typename A1, typename A2, typename A3> struct arg3 {
@@ -474,7 +537,7 @@ namespace perl {
 					Argument_stack arg_stack(me_perl);
 					const constructor_info data = implementation::get_function_pointer<constructor_info>(me_perl, cef);
 					const func_ptr ref = data.get<func_ptr>();
-					TRY_OR_THROW(arg_stack.returns(store_in_cache(me_perl, ref(static_cast<A1>(arg_stack[1]), static_cast<A2>(arg_stack[2]), static_cast<A3>(arg_stack[3])), data.class_state)));
+					TRY_OR_THROW(arg_stack.returns(store_in_cache(me_perl, ref(typecast_to<A1>(arg_stack[1]), typecast_to<A2>(arg_stack[2]), typecast_to<A3>(arg_stack[3])), data.class_state)));
 				}
 			};
 			public:
@@ -532,11 +595,7 @@ namespace perl {
 			}
 			return 0;
 		}
-
-
-		SV* value_of_pointer(interpreter*, void*);
-		Ref<Any>::Temp store_in_cache(interpreter*, void*, const implementation::Class_state&);
-	 }
+	}
 
 	template<typename T> class Class;
 
@@ -643,10 +702,10 @@ namespace perl {
 			initialize(false, false);
 		}
 		template<typename U> typename boost::enable_if<typename boost::is_function<typename boost::remove_pointer<U>::type >::type, void>::type add(const char * name, const U& function) {
-				package.add(name, function);
+			package.add(name, function);
 		}
 		template<typename U> void add(const char * name, U T::* const member) {
-				package.add(name, member);
+			package.add(name, member);
 		}
 		template<typename A1, typename A2, typename A3, typename A4, typename A5> void add(const char* name, const init<A1, A2, A3, A4, A5>&) {
 			typedef typename implementation::constructor<T, A1, A2, A3, A4, A5> constructor;
@@ -681,8 +740,8 @@ namespace perl {
 	class Interpreter {
 		const boost::shared_ptr<interpreter> raw_interp;
 		public:
-		Interpreter& operator=(const Interpreter&); //What should that do?
-		Interpreter(interpreter*);
+		Interpreter& operator=(const Interpreter&);
+		explicit Interpreter(interpreter*);
 		public:
 		Interpreter();
 		Interpreter(int, const char*[]);
@@ -721,8 +780,8 @@ namespace perl {
 		const String::Temp value_of(Raw_string) const;
 		const String::Temp value_of(const char*) const;
 		const String::Temp value_of(const std::string&) const;
-		template<typename T, typename U> const typename Ref<U>::Temp value_of(T* object, const U* = static_cast<Any*>(0)) const {
-			return Ref<U>::Temp(raw_interp, implementation::value_of_pointer(raw_interp, object), false);
+		template<typename T, typename U> const typename implementation::typemap_from_info<T>::result_type value_of(const T& t, const U* = static_cast<Any*>(0)) const {
+			return typecast::typemap<T>::cast_from(raw_interp.get(), t);
 		}
 
 		Handle open(Raw_string) const;
@@ -797,4 +856,25 @@ namespace perl {
 			return implementation::Call_stack(get_interpreter()).push(t1, t2, t3, t4).pack(pattern);
 		}
 	};
+
+	template<typename T> const typename implementation::typemap_from_info<T>::result_type typecast_from(Interpreter& interp, const T& t) {
+		return typecast::typemap<T>::cast_from(interp, t);
+	}
+	template<typename T> const typename implementation::typemap_from_info<T>::result_type typecast_from(interpreter* pre_interp, const T& t) {
+		Interpreter interp(pre_interp);
+		return typecast_from<T>(interp, t);
+	}
+
+	namespace typecast {
+		template<typename T> struct exported_type {
+			typedef boost::true_type from_type;
+			static const Scalar::Temp cast_from(Interpreter& interp, const T& value) {
+				return implementation::value_of_pointer(interp.get_interpreter(), &value);
+			}
+			static const T& cast_to(const Scalar::Value& value) {
+				return *implementation::get_magic_object<T>(value);
+			}
+		};
+	}
+
 }

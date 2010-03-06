@@ -146,7 +146,7 @@ namespace perl {
 		Scalar::Temp temp = implementation::Call_stack(raw_interp.get()).push(regexp).sub_scalar("Embed::Perlpp::regexp");
 		return Regex(std::auto_ptr<Regex::Implementation>(new Regex::Implementation(raw_interp.get(), temp.release())));
 #else
-		return Regex(std::auto_ptr<Regex::Implementation>(new Regex::Implementation(raw_interp.get(), regexp.get_SV(true), 0)));
+		return Regex(std::auto_ptr<Regex::Implementation>(new Regex::Implementation(raw_interp.get(), regexp.get_SV(true), "")));
 #endif
 	}
 
@@ -174,9 +174,9 @@ namespace perl {
 
 	Handle Interpreter::open(Raw_string filename) const {
 		GV* ret = newGVgen(const_cast<char*>("Symbol"));
-		bool success = do_open(ret, const_cast<char*>(filename.value), filename.length, false, O_RDONLY, 0, Nullfp);
+		bool success = do_openn(ret, const_cast<char*>(filename.value), filename.length, false, O_RDONLY, 0, Nullfp, NULL, 0);
 		if (!success) {
-			std::string message("Couldn't open file");
+			std::string message("Couldn't open file ");
 			message += SvPV_nolen(ERRSV);
 			throw IO_exception(message);
 		}
